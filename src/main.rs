@@ -1,6 +1,7 @@
 mod autopush;
 mod cli;
 mod config;
+mod discord;
 mod error;
 mod listener;
 mod push;
@@ -50,7 +51,19 @@ async fn main() {
 
     if let Err(e) = result {
         eprintln!("{} {}", style("error:").red().bold(), e);
-        std::process::exit(1);
+        std::process::exit(exit_code(&e));
+    }
+}
+
+/// Exit code for a failed command.
+///
+/// A failed re-registration gets its own code so a supervisor can be told not to
+/// restart on it (systemd: `RestartPreventExitStatus=2`). Restarting would call the
+/// X API again on every start.
+fn exit_code(error: &error::AngelicAngelError) -> i32 {
+    match error {
+        error::AngelicAngelError::Reregistration(_) => 2,
+        _ => 1,
     }
 }
 

@@ -96,6 +96,47 @@ mod tests {
     }
 }
 
+#[cfg(test)]
+mod format_tests {
+    use super::*;
+
+    #[test]
+    fn parses_webhook_format() {
+        assert_eq!(parse_webhook_format("").unwrap(), WebhookFormat::Raw);
+        assert_eq!(parse_webhook_format("raw").unwrap(), WebhookFormat::Raw);
+        assert_eq!(parse_webhook_format(" Discord ").unwrap(), WebhookFormat::Discord);
+        assert!(parse_webhook_format("slack").is_err());
+    }
+}
+
+/// Shape of the JSON body POSTed to the webhook.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub enum WebhookFormat {
+    /// The decrypted payload as received from X.
+    Raw,
+    /// A Discord webhook message (`content` with title, body and tweet link).
+    Discord,
+}
+
+/// Reads the webhook body format from the WEBHOOK_FORMAT environment variable (default: raw).
+pub fn get_webhook_format() -> Result<WebhookFormat> {
+    match std::env::var("WEBHOOK_FORMAT") {
+        Ok(value) => parse_webhook_format(&value),
+        Err(_) => Ok(WebhookFormat::Raw),
+    }
+}
+
+fn parse_webhook_format(value: &str) -> Result<WebhookFormat> {
+    match value.trim().to_ascii_lowercase().as_str() {
+        "" | "raw" => Ok(WebhookFormat::Raw),
+        "discord" => Ok(WebhookFormat::Discord),
+        other => Err(AngelicAngelError::Config(format!(
+            "unknown WEBHOOK_FORMAT '{}': expected 'raw' or 'discord'",
+            other
+        ))),
+    }
+}
+
 /// Reads the webhook endpoint URL from the WEBHOOK_ENDPOINT environment variable.
 pub fn get_webhook_endpoint() -> Result<String> {
     std::env::var("WEBHOOK_ENDPOINT").map_err(|_| {

@@ -1,5 +1,6 @@
 use crate::autopush::{self, ConnectResult};
-use crate::config::{self, Registration};
+use crate::config::{self, Registration, WebhookFormat};
+use crate::discord;
 use crate::error::{Result, AngelicAngelError};
 use crate::twitter;
 use reqwest::Client;
@@ -14,6 +15,7 @@ const WEBHOOK_TIMEOUT: Duration = Duration::from_secs(10);
 struct Webhook {
     client: Client,
     url: String,
+    format: WebhookFormat,
 }
 
 /// Outcome of a single listen session.
@@ -61,6 +63,7 @@ pub async fn listen(mut registration: Registration, config_path: &Path) -> Resul
     let webhook = Webhook {
         client: Client::builder().timeout(WEBHOOK_TIMEOUT).build()?,
         url: config::get_webhook_endpoint()?,
+        format: config::get_webhook_format()?,
     };
     let mut retry_count: u32 = 0;
 
@@ -291,9 +294,15 @@ fn handle_notification_data(
 
 /// Sends the decrypted notification payload to the configured webhook endpoint via HTTP POST.
 async fn send_to_webhook(webhook: Webhook, payload: serde_json::Value) {
-    tracing::info!(url = %webhook.url, "sending to webhook");
+    // The URL is never logged: for services like Discord it is itself a credential.
+    tracing::info!(format = ?webhook.format, "sending to webhook");
 
-    let response = match webhook.client.post(&webhook.url).json(&payload).send().await {
+    let body = match webhook.format {
+        WebhookFormat::Raw => payload,
+        WebhookFormat::Discord => discord::message(&payload),
+    };
+
+    let response = match webhook.client.post(&webhook.url).json(&body).send().await {
         Ok(response) => response,
         Err(e) if e.is_timeout() => {
             tracing::warn!(timeout_secs = WEBHOOK_TIMEOUT.as_secs(), "webhook request timed out");
@@ -301,7 +310,7 @@ async fn send_to_webhook(webhook: Webhook, payload: serde_json::Value) {
         }
         // reqwest's Display omits the cause (e.g. connection refused); Debug includes it.
         Err(e) => {
-            tracing::warn!(error = ?e, "webhook request failed");
+            tracing::warn!(error = ?e.without_url(), "webhook request failed");
             return;
         }
     };
