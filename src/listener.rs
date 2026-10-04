@@ -417,3 +417,65 @@ fn parse_header_param(header_value: Option<&String>, param_name: &str) -> Result
         param_name, header
     )))
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::collections::HashMap;
+
+    #[test]
+    fn backoff_doubles_from_5s_and_caps_at_5min() {
+        let delays: Vec<u64> = (1..=8).map(calc_backoff).collect();
+        assert_eq!(delays, [5, 10, 20, 40, 80, 160, 300, 300]);
+        assert_eq!(calc_backoff(u32::MAX), 300);
+    }
+
+    #[test]
+    fn parse_header_param_handles_spaces_and_missing_values() {
+        let header = "dh=abc; p256ecdsa=xyz".to_string();
+        assert_eq!(parse_header_param(Some(&header), "dh").unwrap(), "abc");
+        assert_eq!(parse_header_param(Some(&header), "p256ecdsa").unwrap(), "xyz");
+        assert!(parse_header_param(Some(&header), "salt").is_err());
+        assert!(parse_header_param(None, "dh").is_err());
+    }
+
+    #[test]
+    fn decrypts_aes128gcm_with_generated_keys() {
+        let keys = crate::push::generate_keys();
+        let encrypted = ece::encrypt(&keys.public_key, &keys.auth_secret, b"hello").unwrap();
+
+        assert_eq!(decrypt_ece(&encrypted, &None, &keys).unwrap(), b"hello");
+    }
+
+    #[test]
+    fn decrypts_aesgcm_with_autopush_style_headers() {
+        let keys = crate::push::generate_keys();
+        let block =
+            ece::legacy::encrypt_aesgcm(&keys.public_key, &keys.auth_secret, b"hello").unwrap();
+
+        // AutoPush delivers lowercased header names with underscores.
+        let mut headers = HashMap::from([("encoding".to_string(), "aesgcm".to_string())]);
+        for (name, value) in block.headers(None) {
+            headers.insert(name.to_lowercase().replace('-', "_"), value);
+        }
+        let ciphertext = base64::Engine::decode(
+            &base64::engine::general_purpose::URL_SAFE_NO_PAD,
+            block.body(),
+        )
+        .unwrap();
+
+        assert_eq!(decrypt_ece(&ciphertext, &Some(headers), &keys).unwrap(), b"hello");
+    }
+
+    #[test]
+    fn decryption_fails_with_wrong_keys() {
+        let keys = crate::push::generate_keys();
+        let other = crate::push::generate_keys();
+        let encrypted = ece::encrypt(&other.public_key, &other.auth_secret, b"hello").unwrap();
+
+        assert!(matches!(
+            decrypt_ece(&encrypted, &None, &keys),
+            Err(AngelicAngelError::Decryption(_))
+        ));
+    }
+}
