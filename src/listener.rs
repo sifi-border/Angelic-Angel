@@ -295,8 +295,13 @@ async fn send_to_webhook(webhook: Webhook, payload: serde_json::Value) {
 
     let response = match webhook.client.post(&webhook.url).json(&payload).send().await {
         Ok(response) => response,
+        Err(e) if e.is_timeout() => {
+            tracing::warn!(timeout_secs = WEBHOOK_TIMEOUT.as_secs(), "webhook request timed out");
+            return;
+        }
+        // reqwest's Display omits the cause (e.g. connection refused); Debug includes it.
         Err(e) => {
-            tracing::warn!(error = %e, "webhook request failed");
+            tracing::warn!(error = ?e, "webhook request failed");
             return;
         }
     };
