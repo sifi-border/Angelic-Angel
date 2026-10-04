@@ -1,0 +1,49 @@
+[Unit]
+Description=Angelic Angel (X push notifications to Discord)
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+Type=exec
+User=angelic-angel
+Group=angelic-angel
+# WEBHOOK_ENDPOINT (Discord URL, a credential) and WEBHOOK_FORMAT=discord. 0600 root:root.
+EnvironmentFile=/etc/angelic-angel/discord.env
+# Add -v before -c for debug logs (they include the full payload and push endpoint).
+ExecStart=/usr/local/bin/angelic-angel -c /var/lib/angelic-angel/angelic-angel.toml listen
+
+Restart=on-failure
+RestartSec=30
+# 3 = re-registration with X failed; restarting would call the X API again.
+RestartPreventExitStatus=3
+
+# /var/lib/angelic-angel, writable: listen rewrites the config when the UAID changes.
+StateDirectory=angelic-angel
+StateDirectoryMode=0700
+UMask=0077
+
+NoNewPrivileges=yes
+ProtectSystem=strict
+ProtectHome=yes
+PrivateTmp=yes
+PrivateDevices=yes
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectKernelLogs=yes
+ProtectControlGroups=yes
+ProtectClock=yes
+ProtectHostname=yes
+RestrictNamespaces=yes
+RestrictRealtime=yes
+RestrictSUIDSGID=yes
+LockPersonality=yes
+MemoryDenyWriteExecute=yes
+RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX
+CapabilityBoundingSet=
+AmbientCapabilities=
+SystemCallArchitectures=native
+SystemCallFilter=@system-service
+SystemCallErrorNumber=EPERM
+
+[Install]
+WantedBy=multi-user.target
