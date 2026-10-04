@@ -58,11 +58,11 @@ async fn main() {
 /// Exit code for a failed command.
 ///
 /// A failed re-registration gets its own code so a supervisor can be told not to
-/// restart on it (systemd: `RestartPreventExitStatus=2`). Restarting would call the
-/// X API again on every start.
+/// restart on it (systemd: `RestartPreventExitStatus=3`). Restarting would call the
+/// X API again on every start. Not 2: clap already exits with 2 on usage errors.
 fn exit_code(error: &error::AngelicAngelError) -> i32 {
     match error {
-        error::AngelicAngelError::Reregistration(_) => 2,
+        error::AngelicAngelError::Reregistration(_) => 3,
         _ => 1,
     }
 }

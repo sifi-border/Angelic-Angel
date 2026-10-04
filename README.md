@@ -115,7 +115,7 @@ angelic-angel unregister
 Angelic Angel implements a Firefox-compatible reconnection strategy:
 
 - Exponential backoff: 5s × 2^n, capped at 5 minutes
-- Automatic re-registration on UAID invalidation (if the X registration fails, `listen` exits with status 2 instead of retrying; run `register` again. Under systemd, set `RestartPreventExitStatus=2` so a restart does not call the X API again)
+- Automatic re-registration on UAID invalidation (if the X registration fails, `listen` exits with status 3 instead of retrying; run `register` again. Under systemd, set `RestartPreventExitStatus=3` so a restart does not call the X API again)
 - Server backoff (close code 4774): 30-minute delay
 - Infinite retries with counter reset on successful connection
 

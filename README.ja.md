@@ -115,7 +115,7 @@ angelic-angel unregister
 Angelic Angel は Firefox 互換の再接続戦略を実装しています:
 
 - 指数バックオフ: 5秒 × 2^n (上限 5 分)
-- UAID 無効化時の自動再登録 (X への再登録に失敗した場合はリトライせず `listen` が終了コード 2 で終了します。`register` を再実行してください。systemd では `RestartPreventExitStatus=2` を指定すると、再起動で X の API を再度呼ぶことを防げます)
+- UAID 無効化時の自動再登録 (X への再登録に失敗した場合はリトライせず `listen` が終了コード 3 で終了します。`register` を再実行してください。systemd では `RestartPreventExitStatus=3` を指定すると、再起動で X の API を再度呼ぶことを防げます)
 - サーババックオフ (close code 4774): 30 分間の待機
 - 接続成功時にリトライカウンタをリセットする無限リトライ
 
