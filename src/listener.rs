@@ -6,6 +6,16 @@ use reqwest::Client;
 use std::path::Path;
 use std::time::Duration;
 
+/// Upper bound for a single webhook POST, including connect.
+const WEBHOOK_TIMEOUT: Duration = Duration::from_secs(10);
+
+/// Destination for decrypted notification payloads.
+#[derive(Clone)]
+struct Webhook {
+    client: Client,
+    url: String,
+}
+
 /// Outcome of a single listen session.
 ///
 /// Follows the design of Firefox's PushServiceWebSocket.sys.mjs, explicitly
@@ -48,10 +58,14 @@ fn calc_backoff(retry_count: u32) -> u64 {
 /// - Exponential backoff: 5s * 2^n, capped at 5 minutes.
 /// - Server-initiated backoff via close code 4774 delays reconnection for 30 minutes.
 pub async fn listen(mut registration: Registration, config_path: &Path) -> Result<()> {
+    let webhook = Webhook {
+        client: Client::builder().timeout(WEBHOOK_TIMEOUT).build()?,
+        url: config::get_webhook_endpoint()?,
+    };
     let mut retry_count: u32 = 0;
 
     loop {
-        match listen_once(&mut registration, config_path).await {
+        match listen_once(&mut registration, config_path, &webhook).await {
             SessionOutcome::NormalClose => {
                 retry_count = 0;
                 tracing::info!("WebSocket connection closed, reconnecting");
@@ -86,7 +100,11 @@ pub async fn listen(mut registration: Registration, config_path: &Path) -> Resul
 }
 
 /// Runs a single listen session: connect, receive notifications, return outcome.
-async fn listen_once(registration: &mut Registration, config_path: &Path) -> SessionOutcome {
+async fn listen_once(
+    registration: &mut Registration,
+    config_path: &Path,
+    webhook: &Webhook,
+) -> SessionOutcome {
     let mut client = match try_connect(registration, config_path).await {
         Ok(client) => client,
         Err(e @ AngelicAngelError::Reregistration(_)) => return SessionOutcome::Fatal(e),
@@ -95,7 +113,7 @@ async fn listen_once(registration: &mut Registration, config_path: &Path) -> Ses
 
     tracing::info!("WebSocket connection established, listening for notifications");
 
-    match run_notification_loop(&mut client, registration).await {
+    match run_notification_loop(&mut client, registration, webhook).await {
         Ok(()) => SessionOutcome::NormalClose,
         Err(e) => SessionOutcome::DisconnectedAfterConnect(e),
     }
@@ -175,6 +193,7 @@ async fn reregister(
 async fn run_notification_loop(
     client: &mut autopush::AutoPushClient,
     registration: &Registration,
+    webhook: &Webhook,
 ) -> Result<()> {
     while let Some(notification) = client.next_notification().await? {
         tracing::info!(
@@ -184,7 +203,7 @@ async fn run_notification_loop(
         );
 
         let ack_code = if let Some(ref data) = notification.data {
-            match handle_notification_data(data, &notification.headers, &registration.keys).await {
+            match handle_notification_data(data, &notification.headers, &registration.keys, webhook) {
                 Ok(()) => autopush::AckCode::Delivered,
                 Err(ref e) if is_decryption_error(e) => {
                     tracing::warn!(error = %e, "decryption error, sending ACK with decryption_error");
@@ -221,10 +240,15 @@ fn is_decryption_error(e: &AngelicAngelError) -> bool {
     matches!(e, AngelicAngelError::Decryption(_))
 }
 
-async fn handle_notification_data(
+/// Decrypts a notification and hands the payload to the webhook in the background.
+///
+/// The webhook POST is spawned so a slow or unreachable webhook never blocks
+/// receiving, pinging or ACKing on the AutoPush connection.
+fn handle_notification_data(
     data: &str,
     headers: &Option<std::collections::HashMap<String, String>>,
     keys: &crate::config::WebPushKeys,
+    webhook: &Webhook,
 ) -> Result<()> {
     let encrypted = base64::Engine::decode(&base64::engine::general_purpose::URL_SAFE_NO_PAD, data)
         .map_err(|e| AngelicAngelError::Decryption(format!("base64 decode failed: {}", e)))?;
@@ -258,19 +282,24 @@ async fn handle_notification_data(
 
     tracing::info!(payload = %payload, "notification decrypted");
 
-    send_to_webhook(&payload).await?;
+    // ponytail: one task per notification, unbounded and unordered; bounded by
+    // WEBHOOK_TIMEOUT. Add a queue/semaphore if notification bursts become large.
+    tokio::spawn(send_to_webhook(webhook.clone(), payload));
 
     Ok(())
 }
 
 /// Sends the decrypted notification payload to the configured webhook endpoint via HTTP POST.
-async fn send_to_webhook(payload: &serde_json::Value) -> Result<()> {
-    let webhook_url = config::get_webhook_endpoint()?;
-    let client = Client::new();
+async fn send_to_webhook(webhook: Webhook, payload: serde_json::Value) {
+    tracing::info!(url = %webhook.url, "sending to webhook");
 
-    tracing::info!(url = %webhook_url, "sending to webhook");
-
-    let response = client.post(&webhook_url).json(payload).send().await?;
+    let response = match webhook.client.post(&webhook.url).json(&payload).send().await {
+        Ok(response) => response,
+        Err(e) => {
+            tracing::warn!(error = %e, "webhook request failed");
+            return;
+        }
+    };
 
     if !response.status().is_success() {
         let status = response.status();
@@ -282,8 +311,6 @@ async fn send_to_webhook(payload: &serde_json::Value) -> Result<()> {
     } else {
         tracing::info!(status = %response.status(), "webhook request succeeded");
     }
-
-    Ok(())
 }
 
 fn decrypt_ece(
