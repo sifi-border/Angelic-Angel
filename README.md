@@ -89,7 +89,7 @@ Set `WEBHOOK_FORMAT=discord` to post to a Discord webhook URL:
 WEBHOOK_FORMAT=discord WEBHOOK_ENDPOINT=https://discord.com/api/webhooks/ID/TOKEN angelic-angel listen
 ```
 
-Each notification becomes a message with the title, the body and the tweet link (mentions disabled, push endpoint not included). A payload without those fields is posted as JSON. The webhook URL is a credential; it is never written to the logs.
+Each notification is posted as just the tweet link; Discord's link preview shows the tweet. A payload without a link is posted as JSON (push endpoint removed, mentions disabled). The webhook URL is a credential; it is never written to the logs.
 
 ### Other commands
 

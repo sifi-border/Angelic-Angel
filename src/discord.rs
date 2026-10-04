@@ -11,57 +11,17 @@ const X_BASE_URL: &str = "https://x.com";
 
 /// Builds the Discord webhook body for a notification payload.
 ///
-/// Mentions are disabled so tweet text containing `@everyone` cannot ping the channel.
+/// The message is just the tweet link; Discord's link preview shows the tweet.
+/// Falls back to the payload itself when it has no link. Mentions are disabled so
+/// text in that fallback (e.g. `@everyone`) cannot ping the channel.
 pub fn message(payload: &Value) -> Value {
+    let content = field(payload, "uri")
+        .and_then(tweet_url)
+        .unwrap_or_else(|| fallback(payload));
     json!({
-        "content": content(payload),
+        "content": content,
         "allowed_mentions": { "parse": [] },
     })
-}
-
-/// `**title**`, body and tweet URL on separate lines, whichever of them are present.
-///
-/// The body is the part that gets shortened, so the link always survives.
-/// Falls back to the payload itself when none of the known fields exist.
-fn content(payload: &Value) -> String {
-    let title = field(payload, "title").map(|t| format!("**{}**", escape_markdown(t)));
-    let body = field(payload, "body").map(escape_markdown);
-    let url = field(payload, "uri").and_then(tweet_url);
-
-    if title.is_none() && body.is_none() && url.is_none() {
-        return fallback(payload);
-    }
-
-    let fixed: usize = [&title, &url]
-        .into_iter()
-        .flatten()
-        .map(|part| part.chars().count() + 1)
-        .sum();
-    let body = body.map(|b| truncate(&b, MAX_CONTENT_CHARS.saturating_sub(fixed)));
-
-    let parts: Vec<String> = [title, body, url].into_iter().flatten().collect();
-    truncate(&parts.join("\n"), MAX_CONTENT_CHARS)
-}
-
-/// Escapes Discord markdown so text from X is shown literally.
-///
-/// Stops tweet text from rendering a masked link (`[text](url)`) that hides its
-/// real destination, or from breaking the bold title. In words that start with
-/// `http://` or `https://` only brackets are escaped, so links stay clickable.
-fn escape_markdown(text: &str) -> String {
-    let mut escaped = String::with_capacity(text.len());
-    for word in text.split_inclusive(char::is_whitespace) {
-        let is_url = word.starts_with("http://") || word.starts_with("https://");
-        for c in word.chars() {
-            let special = matches!(c, '[' | ']')
-                || (!is_url && matches!(c, '\\' | '*' | '_' | '~' | '`' | '|' | '>' | '#'));
-            if special {
-                escaped.push('\\');
-            }
-            escaped.push(c);
-        }
-    }
-    escaped
 }
 
 /// Looks up a non-empty string under `data` first, then at the top level.
@@ -115,37 +75,23 @@ mod tests {
     }
 
     #[test]
-    fn formats_title_body_and_link() {
+    fn posts_only_the_tweet_link() {
         let payload = json!({
             "registration_ids": ["https://updates.push.services.mozilla.com/wpush/v2/secret"],
             "title": "Alice",
-            "body": "hello",
+            "body": "hello @everyone",
             "data": { "type": "tweet", "uri": "/alice/status/123" }
         });
         let message = message(&payload);
 
-        assert_eq!(content_of(&message), "**Alice**\nhello\nhttps://x.com/alice/status/123");
+        assert_eq!(content_of(&message), "https://x.com/alice/status/123");
         assert_eq!(message["allowed_mentions"]["parse"], json!([]));
     }
 
     #[test]
-    fn prefers_fields_under_data() {
-        let payload = json!({ "title": "outer", "data": { "title": "inner", "body": "b" } });
-        assert_eq!(content_of(&message(&payload)), "**inner**\nb");
-    }
-
-    #[test]
-    fn long_body_is_cut_but_link_is_kept() {
-        let payload = json!({
-            "title": "Alice",
-            "body": "あ".repeat(5000),
-            "data": { "uri": "/alice/status/123" }
-        });
-        let message = message(&payload);
-        let content = content_of(&message);
-
-        assert_eq!(content.chars().count(), MAX_CONTENT_CHARS);
-        assert!(content.ends_with("…\nhttps://x.com/alice/status/123"));
+    fn prefers_uri_under_data() {
+        let payload = json!({ "uri": "/outer/status/1", "data": { "uri": "/inner/status/2" } });
+        assert_eq!(content_of(&message(&payload)), "https://x.com/inner/status/2");
     }
 
     #[test]
@@ -169,22 +115,11 @@ mod tests {
     }
 
     #[test]
-    fn escapes_markdown_but_keeps_links() {
-        let payload = json!({
-            "title": "**M_a**",
-            "body": "[click](https://evil.example) see https://t.co/a_b https://x[y](https://evil)",
-            "data": { "uri": "/m/status/1" }
-        });
-
+    fn uri_that_is_not_a_path_or_https_url_falls_back() {
+        let payload = json!({ "data": { "uri": "javascript:alert(1)" } });
         assert_eq!(
             content_of(&message(&payload)),
-            "**\\*\\*M\\_a\\*\\***\n\\[click\\](https://evil.example) see https://t.co/a_b https://x\\[y\\](https://evil)\nhttps://x.com/m/status/1"
+            "```json\n{\"data\":{\"uri\":\"javascript:alert(1)\"}}\n```"
         );
-    }
-
-    #[test]
-    fn ignores_uri_that_is_not_a_path_or_https_url() {
-        let payload = json!({ "body": "b", "data": { "uri": "javascript:alert(1)" } });
-        assert_eq!(content_of(&message(&payload)), "b");
     }
 }

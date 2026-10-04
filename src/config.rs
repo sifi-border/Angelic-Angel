@@ -114,7 +114,7 @@ mod format_tests {
 pub enum WebhookFormat {
     /// The decrypted payload as received from X.
     Raw,
-    /// A Discord webhook message (`content` with title, body and tweet link).
+    /// A Discord webhook message whose `content` is the tweet link.
     Discord,
 }
 

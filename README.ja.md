@@ -89,7 +89,7 @@ Discord の Webhook URL に投稿する場合は `WEBHOOK_FORMAT=discord` を指
 WEBHOOK_FORMAT=discord WEBHOOK_ENDPOINT=https://discord.com/api/webhooks/ID/TOKEN angelic-angel listen
 ```
 
-通知ごとに、タイトル・本文・ツイートのリンクを含むメッセージになります (メンションは無効、プッシュエンドポイントは含みません)。これらのフィールドがないペイロードは JSON のまま投稿されます。Webhook の URL は認証情報にあたるため、ログには出力されません。
+通知ごとに、ツイートのリンクだけを投稿します (内容は Discord のリンクプレビューで表示されます)。リンクのないペイロードは JSON のまま投稿されます (プッシュエンドポイントは除き、メンションは無効)。Webhook の URL は認証情報にあたるため、ログには出力されません。
 
 ### その他のコマンド
 
