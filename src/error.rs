@@ -12,6 +12,11 @@ pub enum AngelicAngelError {
     #[error("AutoPush server requested backoff")]
     Backoff,
 
+    /// UAID was invalidated and propagating the new subscription failed.
+    /// Not retried automatically, to avoid repeated X API calls.
+    #[error("re-registration failed, run `register` again: {0}")]
+    Reregistration(Box<AngelicAngelError>),
+
     #[error("Twitter API error: {0}")]
     TwitterApi(String),
 

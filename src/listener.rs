@@ -89,12 +89,8 @@ pub async fn listen(mut registration: Registration, config_path: &Path) -> Resul
 async fn listen_once(registration: &mut Registration, config_path: &Path) -> SessionOutcome {
     let mut client = match try_connect(registration, config_path).await {
         Ok(client) => client,
-        Err(e) => {
-            if e.to_string().contains("still failed after re-registration") {
-                return SessionOutcome::Fatal(e);
-            }
-            return SessionOutcome::ConnectionFailed(e);
-        }
+        Err(e @ AngelicAngelError::Reregistration(_)) => return SessionOutcome::Fatal(e),
+        Err(e) => return SessionOutcome::ConnectionFailed(e),
     };
 
     tracing::info!("WebSocket connection established, listening for notifications");
@@ -115,47 +111,64 @@ async fn try_connect(registration: &mut Registration, config_path: &Path) -> Res
             tracing::info!("connected with existing session");
             Ok(client)
         }
+        // A failed re-registration is fatal: retrying would generate new keys and call the
+        // X API again on every backoff cycle.
         ConnectResult::NeedsReregistration(reregistration_info) => {
-            let new_reg = &reregistration_info.registration;
-            let new_keys = reregistration_info.keys;
-
-            tracing::warn!(
-                new_uaid = %new_reg.uaid,
-                new_channel_id = %new_reg.channel_id,
-                "UAID invalidated (pushsubscriptionchange), re-registering"
-            );
-
-            tracing::info!("re-registering with Twitter API");
-            let mut full_config = config::Config::load(config_path)?;
-
-            let subscription = crate::push::PushSubscription {
-                endpoint: new_reg.endpoint.clone(),
-                autopush: config::AutoPushSession {
-                    uaid: new_reg.uaid.clone(),
-                    channel_id: new_reg.channel_id.clone(),
-                },
-                keys: new_keys.clone(),
-            };
-
-            twitter::register(&full_config.twitter, &subscription).await?;
-            tracing::info!("Twitter API re-registration complete");
-
-            registration.endpoint = new_reg.endpoint.clone();
-            registration.autopush.uaid = new_reg.uaid.clone();
-            registration.autopush.channel_id = new_reg.channel_id.clone();
-            registration.keys = new_keys;
-            full_config.registration = Some(registration.clone());
-            full_config.save(config_path)?;
-            tracing::info!("saved updated registration");
+            reregister(registration, config_path, reregistration_info)
+                .await
+                .map_err(|e| AngelicAngelError::Reregistration(Box::new(e)))?;
 
             match autopush::connect_and_listen(&registration.autopush, &registration.keys).await? {
                 ConnectResult::Connected(client) => Ok(client),
-                ConnectResult::NeedsReregistration(_) => Err(AngelicAngelError::AutoPush(
-                    "still failed after re-registration".to_string(),
+                ConnectResult::NeedsReregistration(_) => Err(AngelicAngelError::Reregistration(
+                    Box::new(AngelicAngelError::AutoPush(
+                        "UAID invalidated again right after re-registration".to_string(),
+                    )),
                 )),
             }
         }
     }
+}
+
+/// Registers a new AutoPush subscription with X and saves it to the config.
+async fn reregister(
+    registration: &mut Registration,
+    config_path: &Path,
+    reregistration_info: autopush::ReregistrationInfo,
+) -> Result<()> {
+    let new_reg = &reregistration_info.registration;
+    let new_keys = reregistration_info.keys;
+
+    tracing::warn!(
+        new_uaid = %new_reg.uaid,
+        new_channel_id = %new_reg.channel_id,
+        "UAID invalidated (pushsubscriptionchange), re-registering"
+    );
+
+    tracing::info!("re-registering with Twitter API");
+    let mut full_config = config::Config::load(config_path)?;
+
+    let subscription = crate::push::PushSubscription {
+        endpoint: new_reg.endpoint.clone(),
+        autopush: config::AutoPushSession {
+            uaid: new_reg.uaid.clone(),
+            channel_id: new_reg.channel_id.clone(),
+        },
+        keys: new_keys.clone(),
+    };
+
+    twitter::register(&full_config.twitter, &subscription).await?;
+    tracing::info!("Twitter API re-registration complete");
+
+    registration.endpoint = new_reg.endpoint.clone();
+    registration.autopush.uaid = new_reg.uaid.clone();
+    registration.autopush.channel_id = new_reg.channel_id.clone();
+    registration.keys = new_keys;
+    full_config.registration = Some(registration.clone());
+    full_config.save(config_path)?;
+    tracing::info!("saved updated registration");
+
+    Ok(())
 }
 
 /// Receives and processes notifications in a loop until the connection drops.
