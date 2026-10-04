@@ -22,7 +22,7 @@ async fn main() {
     let cli = Cli::parse();
 
     let filter = if cli.verbose {
-        EnvFilter::new("debug")
+        EnvFilter::new("warn,angelic_angel=debug")
     } else {
         EnvFilter::new("warn")
     };
