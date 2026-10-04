@@ -79,7 +79,17 @@ WEBHOOK_ENDPOINT=https://your-webhook.example.com/endpoint angelic-angel listen
 
 `WEBHOOK_ENDPOINT` 環境変数で、復号された通知ペイロードの HTTP POST 送信先を指定します。POST はバックグラウンドで 10 秒のタイムアウト付きで送られるため、Webhook が遅くても受信は止まりません。到着順は保証されず、失敗はログに出るだけで再送されません。
 
-ペイロードは X から届いたまま転送されます。`registration_ids` にプッシュエンドポイントの URL が含まれるため、第三者に渡す場合は取り除いてください。
+デフォルトでは、ペイロードは X から届いたまま転送されます。`registration_ids` にプッシュエンドポイントの URL が含まれるため、第三者に渡す場合は取り除いてください。
+
+#### Discord
+
+Discord の Webhook URL に投稿する場合は `WEBHOOK_FORMAT=discord` を指定します。
+
+```bash
+WEBHOOK_FORMAT=discord WEBHOOK_ENDPOINT=https://discord.com/api/webhooks/ID/TOKEN angelic-angel listen
+```
+
+通知ごとに、タイトル・本文・ツイートのリンクを含むメッセージになります (メンションは無効、プッシュエンドポイントは含みません)。これらのフィールドがないペイロードは JSON のまま投稿されます。Webhook の URL は認証情報にあたるため、ログには出力されません。
 
 ### その他のコマンド
 
@@ -105,7 +115,7 @@ angelic-angel unregister
 Angelic Angel は Firefox 互換の再接続戦略を実装しています:
 
 - 指数バックオフ: 5秒 × 2^n (上限 5 分)
-- UAID 無効化時の自動再登録 (X への再登録に失敗した場合はリトライせず `listen` が終了します。`register` を再実行してください)
+- UAID 無効化時の自動再登録 (X への再登録に失敗した場合はリトライせず `listen` が終了コード 2 で終了します。`register` を再実行してください。systemd では `RestartPreventExitStatus=2` を指定すると、再起動で X の API を再度呼ぶことを防げます)
 - サーババックオフ (close code 4774): 30 分間の待機
 - 接続成功時にリトライカウンタをリセットする無限リトライ
 

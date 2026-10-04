@@ -79,7 +79,17 @@ WEBHOOK_ENDPOINT=https://your-webhook.example.com/endpoint angelic-angel listen
 
 The `WEBHOOK_ENDPOINT` environment variable specifies where decrypted notification payloads are sent via HTTP POST. Each POST runs in the background with a 10-second timeout, so a slow webhook does not block receiving; POSTs may arrive out of order, and failures are logged but not retried.
 
-The payload is forwarded as received from X. It includes `registration_ids`, which holds your push endpoint URL; strip it before passing payloads to third parties.
+By default the payload is forwarded as received from X. It includes `registration_ids`, which holds your push endpoint URL; strip it before passing payloads to third parties.
+
+#### Discord
+
+Set `WEBHOOK_FORMAT=discord` to post to a Discord webhook URL:
+
+```bash
+WEBHOOK_FORMAT=discord WEBHOOK_ENDPOINT=https://discord.com/api/webhooks/ID/TOKEN angelic-angel listen
+```
+
+Each notification becomes a message with the title, the body and the tweet link (mentions disabled, push endpoint not included). A payload without those fields is posted as JSON. The webhook URL is a credential; it is never written to the logs.
 
 ### Other commands
 
@@ -105,7 +115,7 @@ angelic-angel unregister
 Angelic Angel implements a Firefox-compatible reconnection strategy:
 
 - Exponential backoff: 5s × 2^n, capped at 5 minutes
-- Automatic re-registration on UAID invalidation (if the X registration fails, `listen` exits instead of retrying; run `register` again)
+- Automatic re-registration on UAID invalidation (if the X registration fails, `listen` exits with status 2 instead of retrying; run `register` again. Under systemd, set `RestartPreventExitStatus=2` so a restart does not call the X API again)
 - Server backoff (close code 4774): 30-minute delay
 - Infinite retries with counter reset on successful connection
 
