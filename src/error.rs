@@ -8,6 +8,10 @@ pub enum AngelicAngelError {
     #[error("AutoPush error: {0}")]
     AutoPush(String),
 
+    /// Server closed the WebSocket with code 4774 and asked us to back off.
+    #[error("AutoPush server requested backoff")]
+    Backoff,
+
     #[error("Twitter API error: {0}")]
     TwitterApi(String),
 

@@ -600,9 +600,7 @@ impl AutoPushClient {
                         Some(Ok(Message::Close(frame))) => {
                             if is_backoff_close(&frame) {
                                 warn!("server backoff request received (close code 4774)");
-                                return Err(AngelicAngelError::AutoPush(
-                                    "BACKOFF: server requested backoff".to_string(),
-                                ));
+                                return Err(AngelicAngelError::Backoff);
                             }
                             info!("WebSocket closed by server");
                             return Ok(None);
@@ -719,9 +717,7 @@ impl AutoPushClient {
                 Ok(Some(Ok(Message::Close(frame)))) => {
                     if is_backoff_close(&frame) {
                         warn!("server backoff request received while waiting for pong (close code 4774)");
-                        return Err(AngelicAngelError::AutoPush(
-                            "BACKOFF: server requested backoff".to_string(),
-                        ));
+                        return Err(AngelicAngelError::Backoff);
                     }
                     return Ok(PongWaitResult::ConnectionClosed);
                 }

@@ -57,15 +57,14 @@ pub async fn listen(mut registration: Registration, config_path: &Path) -> Resul
                 tracing::info!("WebSocket connection closed, reconnecting");
                 tokio::time::sleep(Duration::from_secs(1)).await;
             }
+            SessionOutcome::DisconnectedAfterConnect(AngelicAngelError::Backoff) => {
+                tracing::warn!("server requested backoff, delaying reconnect for 30 minutes");
+                tokio::time::sleep(Duration::from_secs(30 * 60)).await;
+            }
             SessionOutcome::DisconnectedAfterConnect(e) => {
-                if e.to_string().contains("BACKOFF:") {
-                    tracing::warn!("server requested backoff, delaying reconnect for 30 minutes");
-                    tokio::time::sleep(Duration::from_secs(30 * 60)).await;
-                } else {
-                    retry_count = 0;
-                    tracing::info!(error = %e, "disconnected after connect, reconnecting");
-                    tokio::time::sleep(Duration::from_secs(1)).await;
-                }
+                retry_count = 0;
+                tracing::info!(error = %e, "disconnected after connect, reconnecting");
+                tokio::time::sleep(Duration::from_secs(1)).await;
             }
             SessionOutcome::ConnectionFailed(e) => {
                 retry_count += 1;
@@ -91,9 +90,7 @@ async fn listen_once(registration: &mut Registration, config_path: &Path) -> Ses
     let mut client = match try_connect(registration, config_path).await {
         Ok(client) => client,
         Err(e) => {
-            if e.to_string().contains("UAID invalid")
-                || e.to_string().contains("still failed after re-registration")
-            {
+            if e.to_string().contains("still failed after re-registration") {
                 return SessionOutcome::Fatal(e);
             }
             return SessionOutcome::ConnectionFailed(e);
