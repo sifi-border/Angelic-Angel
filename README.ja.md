@@ -33,7 +33,8 @@ Twitter/X  ──push──▶  Mozilla AutoPush サーバ  ◀──WebSocket�
 
 ## 必要環境
 
-- Rust (edition 2024)
+- Rust 1.85 以降 (edition 2024)
+- OpenSSL の開発ヘッダと `pkg-config` (`ece` クレートが使用)。Debian/Ubuntu では `apt install pkg-config libssl-dev`
 - Twitter/X アカウントの認証情報 (`auth_token` と `ct0` Cookie)
 
 ### `auth_token` と `ct0` の取得方法
@@ -56,11 +57,11 @@ cargo install --path .
 # 対話モード
 angelic-angel init
 
-# 引数を指定する場合
+# 引数を指定する場合 (値がシェル履歴に残ります)
 angelic-angel init --auth-token YOUR_AUTH_TOKEN --ct0 YOUR_CT0
 ```
 
-Twitter の認証情報を含む `angelic-angel.toml` が作成されます。
+Twitter の認証情報を含む `angelic-angel.toml` が作成されます。ファイルは `0600` で書き込まれます。リポジトリの外に置き、`-c` でパスを指定してください。
 
 ### 2. プッシュサブスクリプションの登録
 
@@ -76,7 +77,9 @@ Mozilla AutoPush に新しいプッシュサブスクリプションを登録し
 WEBHOOK_ENDPOINT=https://your-webhook.example.com/endpoint angelic-angel listen
 ```
 
-`WEBHOOK_ENDPOINT` 環境変数で、復号された通知ペイロードの HTTP POST 送信先を指定します。
+`WEBHOOK_ENDPOINT` 環境変数で、復号された通知ペイロードの HTTP POST 送信先を指定します。POST はバックグラウンドで 10 秒のタイムアウト付きで送られるため、Webhook が遅くても受信は止まりません。到着順は保証されず、失敗はログに出るだけで再送されません。
+
+ペイロードは X から届いたまま転送されます。`registration_ids` にプッシュエンドポイントの URL が含まれるため、第三者に渡す場合は取り除いてください。
 
 ### その他のコマンド
 
@@ -87,6 +90,8 @@ angelic-angel status
 # プッシュサブスクリプションを解除
 angelic-angel unregister
 ```
+
+`unregister` が解除するのは AutoPush 側だけです。X 側の登録は残ります。
 
 ### オプション
 
@@ -100,7 +105,7 @@ angelic-angel unregister
 Angelic Angel は Firefox 互換の再接続戦略を実装しています:
 
 - 指数バックオフ: 5秒 × 2^n (上限 5 分)
-- UAID 無効化時の自動再登録
+- UAID 無効化時の自動再登録 (X への再登録に失敗した場合はリトライせず `listen` が終了します。`register` を再実行してください)
 - サーババックオフ (close code 4774): 30 分間の待機
 - 接続成功時にリトライカウンタをリセットする無限リトライ
 

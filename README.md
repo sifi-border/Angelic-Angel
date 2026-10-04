@@ -33,7 +33,8 @@ Twitter/X  ──push──▶  Mozilla AutoPush Server  ◀──WebSocket─�
 
 ## Requirements
 
-- Rust (edition 2024)
+- Rust 1.85+ (edition 2024)
+- OpenSSL development headers and `pkg-config` (used by the `ece` crate), e.g. `apt install pkg-config libssl-dev` on Debian/Ubuntu
 - Twitter/X account credentials (`auth_token` and `ct0` cookies)
 
 ### Getting `auth_token` and `ct0`
@@ -56,11 +57,11 @@ cargo install --path .
 # Interactive mode
 angelic-angel init
 
-# Or with arguments
+# Or with arguments (values stay in your shell history)
 angelic-angel init --auth-token YOUR_AUTH_TOKEN --ct0 YOUR_CT0
 ```
 
-This creates `angelic-angel.toml` with your Twitter credentials.
+This creates `angelic-angel.toml` with your Twitter credentials. The file is written with `0600` permissions; keep it outside any repository (use `-c` to point to it).
 
 ### 2. Register push subscription
 
@@ -76,7 +77,9 @@ This registers a new push subscription with Mozilla AutoPush and then registers 
 WEBHOOK_ENDPOINT=https://your-webhook.example.com/endpoint angelic-angel listen
 ```
 
-The `WEBHOOK_ENDPOINT` environment variable specifies where decrypted notification payloads are sent via HTTP POST.
+The `WEBHOOK_ENDPOINT` environment variable specifies where decrypted notification payloads are sent via HTTP POST. Each POST runs in the background with a 10-second timeout, so a slow webhook does not block receiving; POSTs may arrive out of order, and failures are logged but not retried.
+
+The payload is forwarded as received from X. It includes `registration_ids`, which holds your push endpoint URL; strip it before passing payloads to third parties.
 
 ### Other commands
 
@@ -87,6 +90,8 @@ angelic-angel status
 # Remove push subscription
 angelic-angel unregister
 ```
+
+`unregister` only removes the AutoPush subscription. The registration on the X side is not removed.
 
 ### Options
 
@@ -100,7 +105,7 @@ angelic-angel unregister
 Angelic Angel implements a Firefox-compatible reconnection strategy:
 
 - Exponential backoff: 5s × 2^n, capped at 5 minutes
-- Automatic re-registration on UAID invalidation
+- Automatic re-registration on UAID invalidation (if the X registration fails, `listen` exits instead of retrying; run `register` again)
 - Server backoff (close code 4774): 30-minute delay
 - Infinite retries with counter reset on successful connection
 
