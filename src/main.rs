@@ -12,7 +12,7 @@ use clap::Parser;
 use cli::{Cli, Commands};
 use config::Config;
 use console::style;
-use dialoguer::{Input, Password};
+use dialoguer::Password;
 use error::Result;
 use indicatif::ProgressBar;
 use tracing_subscriber::EnvFilter;
@@ -101,9 +101,9 @@ async fn cmd_init(
 
     let ct0 = match arg_ct0 {
         Some(v) => v,
-        None => Input::new()
+        None => Password::new()
             .with_prompt("ct0")
-            .interact_text()
+            .interact()
             .map_err(|e| error::AngelicAngelError::Config(format!("input error: {}", e)))?,
     };
 
@@ -181,14 +181,8 @@ async fn cmd_status(config_path: &PathBuf) -> Result<()> {
     match Config::load(config_path) {
         Ok(config) => {
             eprintln!("{}  {}", style("Config").cyan().bold(), style(config_path.display()).dim());
-            eprintln!(
-                "  auth_token  {}...",
-                style(&config.twitter.auth_token.chars().take(20).collect::<String>()).dim()
-            );
-            eprintln!(
-                "  ct0         {}...",
-                style(&config.twitter.ct0.chars().take(20).collect::<String>()).dim()
-            );
+            eprintln!("  auth_token  {}", style(mask(&config.twitter.auth_token)).dim());
+            eprintln!("  ct0         {}", style(mask(&config.twitter.ct0)).dim());
 
             eprintln!();
 
@@ -229,6 +223,15 @@ async fn cmd_status(config_path: &PathBuf) -> Result<()> {
     }
 
     Ok(())
+}
+
+/// Describes a credential without revealing any of its characters.
+fn mask(secret: &str) -> String {
+    if secret.is_empty() {
+        "(empty)".to_string()
+    } else {
+        format!("set ({} chars)", secret.chars().count())
+    }
 }
 
 async fn cmd_unregister(config_path: &PathBuf) -> Result<()> {

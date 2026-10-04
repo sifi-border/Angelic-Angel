@@ -43,7 +43,6 @@ async fn register_push_subscription(
     });
 
     tracing::debug!(url = %url, "sending push subscription request");
-    tracing::debug!(body = %serde_json::to_string_pretty(&body).unwrap(), "request body");
 
     let response = client
         .post(&url)

@@ -357,7 +357,7 @@ pub async fn register_new(_keys: &WebPushKeys) -> Result<AutoPushRegistration> {
                                 status
                             )));
                         }
-                        info!("register succeeded: endpoint={}", push_endpoint);
+                        info!("register succeeded");
                         push_endpoint
                     }
                     _ => {
