@@ -119,6 +119,10 @@ Angelic Angel implements a Firefox-compatible reconnection strategy:
 - Server backoff (close code 4774): 30-minute delay
 - Infinite retries with counter reset on successful connection
 
+## Running as a systemd service
+
+See [deploy/README.md](deploy/README.md) for running `listen` permanently on a Linux server with systemd.
+
 ## License
 
 MIT

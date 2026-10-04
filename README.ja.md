@@ -119,6 +119,10 @@ Angelic Angel は Firefox 互換の再接続戦略を実装しています:
 - サーババックオフ (close code 4774): 30 分間の待機
 - 接続成功時にリトライカウンタをリセットする無限リトライ
 
+## systemd での運用
+
+Linux サーバーで systemd を使って `listen` を常駐させる方法は [deploy/README.ja.md](deploy/README.ja.md) を参照してください。
+
 ## ライセンス
 
 MIT
