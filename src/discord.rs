@@ -24,8 +24,8 @@ pub fn message(payload: &Value) -> Value {
 /// The body is the part that gets shortened, so the link always survives.
 /// Falls back to the payload itself when none of the known fields exist.
 fn content(payload: &Value) -> String {
-    let title = field(payload, "title").map(|t| format!("**{}**", t));
-    let body = field(payload, "body");
+    let title = field(payload, "title").map(|t| format!("**{}**", escape_markdown(t)));
+    let body = field(payload, "body").map(escape_markdown);
     let url = field(payload, "uri").and_then(tweet_url);
 
     if title.is_none() && body.is_none() && url.is_none() {
@@ -37,10 +37,31 @@ fn content(payload: &Value) -> String {
         .flatten()
         .map(|part| part.chars().count() + 1)
         .sum();
-    let body = body.map(|b| truncate(b, MAX_CONTENT_CHARS.saturating_sub(fixed)));
+    let body = body.map(|b| truncate(&b, MAX_CONTENT_CHARS.saturating_sub(fixed)));
 
     let parts: Vec<String> = [title, body, url].into_iter().flatten().collect();
     truncate(&parts.join("\n"), MAX_CONTENT_CHARS)
+}
+
+/// Escapes Discord markdown so text from X is shown literally.
+///
+/// Stops tweet text from rendering a masked link (`[text](url)`) that hides its
+/// real destination, or from breaking the bold title. In words that start with
+/// `http://` or `https://` only brackets are escaped, so links stay clickable.
+fn escape_markdown(text: &str) -> String {
+    let mut escaped = String::with_capacity(text.len());
+    for word in text.split_inclusive(char::is_whitespace) {
+        let is_url = word.starts_with("http://") || word.starts_with("https://");
+        for c in word.chars() {
+            let special = matches!(c, '[' | ']')
+                || (!is_url && matches!(c, '\\' | '*' | '_' | '~' | '`' | '|' | '>' | '#'));
+            if special {
+                escaped.push('\\');
+            }
+            escaped.push(c);
+        }
+    }
+    escaped
 }
 
 /// Looks up a non-empty string under `data` first, then at the top level.
@@ -145,6 +166,20 @@ mod tests {
 
         assert_eq!(content.chars().count(), MAX_CONTENT_CHARS);
         assert!(content.ends_with("\n```"));
+    }
+
+    #[test]
+    fn escapes_markdown_but_keeps_links() {
+        let payload = json!({
+            "title": "**M_a**",
+            "body": "[click](https://evil.example) see https://t.co/a_b https://x[y](https://evil)",
+            "data": { "uri": "/m/status/1" }
+        });
+
+        assert_eq!(
+            content_of(&message(&payload)),
+            "**\\*\\*M\\_a\\*\\***\n\\[click\\](https://evil.example) see https://t.co/a_b https://x\\[y\\](https://evil)\nhttps://x.com/m/status/1"
+        );
     }
 
     #[test]
