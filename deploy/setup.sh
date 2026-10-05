@@ -29,7 +29,9 @@ fi
 
 install -m 0644 -o root -g root "$DEPLOY_DIR/angelic-angel.service" \
     /etc/systemd/system/angelic-angel.service
-systemd-analyze verify /etc/systemd/system/angelic-angel.service
+# verify can fail on problems in unrelated units; report it but keep going.
+systemd-analyze verify /etc/systemd/system/angelic-angel.service ||
+    echo "warning: systemd-analyze verify reported problems (see above)" >&2
 systemctl daemon-reload
 
 echo "done. Not enabled or started."
