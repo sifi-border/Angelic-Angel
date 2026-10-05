@@ -50,7 +50,16 @@ sudo systemctl restart angelic-angel        # 再起動 (discord.env を変更�
 sudo systemctl disable --now angelic-angel  # 停止して自動起動を無効化
 ```
 
-- ログに出るのは警告とエラーだけです。デバッグログが必要なときは、`ExecStart` の `-c` の前に `-v` を付けて `sudo systemctl daemon-reload && sudo systemctl restart angelic-angel` を実行します。デバッグログには通知ごとのペイロードとプッシュエンドポイントが含まれるため、確認が済んだら `-v` を外してください。
+- ログに出るのは警告とエラーだけです。詳しいログが必要なときは、ドロップインで `RUST_LOG` を指定します (`info` で接続と通知、`debug` でさらに ping や復号の詳細が出ます)。
+
+  ```sh
+  sudo systemctl edit angelic-angel     # 次の2行を書いて保存
+  #   [Service]
+  #   Environment=RUST_LOG=angelic_angel=info
+  sudo systemctl restart angelic-angel
+  ```
+
+  このログには通知ごとのペイロードとプッシュエンドポイントが含まれるため、確認が済んだら `sudo systemctl revert angelic-angel` でドロップインを消してください。
 - 異常終了すると 30 秒後に再起動します。ただし終了コード 3 (X への再登録の失敗) のときは再起動しません。まず原因を確認してください。`register` は X の API を呼ぶので、原因を取り除いてから実行します。
 
   ```sh

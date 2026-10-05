@@ -50,7 +50,16 @@ sudo systemctl restart angelic-angel        # restart (e.g. after editing discor
 sudo systemctl disable --now angelic-angel  # stop and disable
 ```
 
-- Logs show only warnings and errors. For debug logs, add `-v` before `-c` in `ExecStart`, then `sudo systemctl daemon-reload && sudo systemctl restart angelic-angel`. Debug logs include each payload and the push endpoint, so remove `-v` again afterwards.
+- Logs show only warnings and errors. For more, set `RUST_LOG` with a drop-in (`info` shows connections and notifications, `debug` adds pings and decryption details):
+
+  ```sh
+  sudo systemctl edit angelic-angel     # add the two lines below, save
+  #   [Service]
+  #   Environment=RUST_LOG=angelic_angel=info
+  sudo systemctl restart angelic-angel
+  ```
+
+  These logs include each payload and the push endpoint, so remove the drop-in afterwards with `sudo systemctl revert angelic-angel`.
 - The service restarts on failure after 30 seconds, except on exit status 3 (re-registration with X failed). Check the cause first; `register` calls the X API, so run it only once the cause is fixed:
 
   ```sh

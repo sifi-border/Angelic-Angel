@@ -110,6 +110,8 @@ angelic-angel unregister
 | `-c, --config <PATH>` | Configuration file path (default: `angelic-angel.toml`) |
 | `-v, --verbose` | Enable debug logging |
 
+Without `-v`, the log level comes from `RUST_LOG` (e.g. `RUST_LOG=angelic_angel=info`) and defaults to warnings and errors. `info` and `debug` logs include each notification payload, which contains the push endpoint.
+
 ## Reconnection
 
 Angelic Angel implements a Firefox-compatible reconnection strategy:

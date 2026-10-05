@@ -22,10 +22,11 @@ use tracing_subscriber::EnvFilter;
 async fn main() {
     let cli = Cli::parse();
 
+    // -v wins; otherwise RUST_LOG (e.g. under systemd, without editing ExecStart); default warn.
     let filter = if cli.verbose {
         EnvFilter::new("warn,angelic_angel=debug")
     } else {
-        EnvFilter::new("warn")
+        EnvFilter::try_from_default_env().unwrap_or_else(|_| EnvFilter::new("warn"))
     };
     tracing_subscriber::fmt().with_env_filter(filter).init();
 

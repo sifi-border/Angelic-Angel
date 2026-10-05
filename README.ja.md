@@ -110,6 +110,8 @@ angelic-angel unregister
 | `-c, --config <PATH>` | 設定ファイルのパス (デフォルト: `angelic-angel.toml`) |
 | `-v, --verbose` | デバッグログを有効化 |
 
+`-v` を付けないときは `RUST_LOG` でログレベルを指定できます (例: `RUST_LOG=angelic_angel=info`)。どちらもなければ警告とエラーだけを出力します。`info` と `debug` のログには通知のペイロードが含まれ、そこにはプッシュエンドポイントも入っています。
+
 ## 再接続
 
 Angelic Angel は Firefox 互換の再接続戦略を実装しています:

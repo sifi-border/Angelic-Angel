@@ -9,7 +9,8 @@ User=angelic-angel
 Group=angelic-angel
 # WEBHOOK_ENDPOINT (Discord URL, a credential) and WEBHOOK_FORMAT=discord. 0600 root:root.
 EnvironmentFile=/etc/angelic-angel/discord.env
-# Add -v before -c for debug logs (they include the full payload and push endpoint).
+# More logs: `systemctl edit` with Environment=RUST_LOG=angelic_angel=info (or debug);
+# they include the full payload and push endpoint, so revert afterwards.
 ExecStart=/usr/local/bin/angelic-angel -c /var/lib/angelic-angel/angelic-angel.toml listen
 
 Restart=on-failure
