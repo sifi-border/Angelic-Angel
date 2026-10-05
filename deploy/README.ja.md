@@ -51,10 +51,18 @@ sudo systemctl disable --now angelic-angel  # 停止して自動起動を無効�
 ```
 
 - ログに出るのは警告とエラーだけです。デバッグログが必要なときは、`ExecStart` の `-c` の前に `-v` を付けて `sudo systemctl daemon-reload && sudo systemctl restart angelic-angel` を実行します。デバッグログには通知ごとのペイロードとプッシュエンドポイントが含まれるため、確認が済んだら `-v` を外してください。
-- 異常終了すると 30 秒後に再起動します。ただし終了コード 3 (X への再登録の失敗) のときは再起動しません。その場合は `register` をやり直してからサービスを起動します。
+- 異常終了すると 30 秒後に再起動します。ただし終了コード 3 (X への再登録の失敗) のときは再起動しません。まず原因を確認してください。`register` は X の API を呼ぶので、原因を取り除いてから実行します。
+
+  ```sh
+  journalctl -u angelic-angel | grep 're-registration'
+  ```
+
+  - **401 / 403** (例: `push subscription registration failed (401 Unauthorized)`): `auth_token` / `ct0` の Cookie が切れています。先に `init` で入れ直してください。`init` は登録情報を含まない設定を新しく書き、`register` がそれを作り直します。
+  - **通信エラーやファイルのエラー**: 原因を取り除いてから、そのまま `register` します。
 
   ```sh
   sudo systemctl stop angelic-angel
+  sudo -u angelic-angel angelic-angel -c /var/lib/angelic-angel/angelic-angel.toml init      # 401/403 のときだけ
   sudo -u angelic-angel angelic-angel -c /var/lib/angelic-angel/angelic-angel.toml register
   sudo systemctl start angelic-angel
   ```

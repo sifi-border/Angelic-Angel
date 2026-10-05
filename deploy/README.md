@@ -51,10 +51,18 @@ sudo systemctl disable --now angelic-angel  # stop and disable
 ```
 
 - Logs show only warnings and errors. For debug logs, add `-v` before `-c` in `ExecStart`, then `sudo systemctl daemon-reload && sudo systemctl restart angelic-angel`. Debug logs include each payload and the push endpoint, so remove `-v` again afterwards.
-- The service restarts on failure after 30 seconds, except on exit status 3 (re-registration with X failed). In that case, run `register` again and start the service:
+- The service restarts on failure after 30 seconds, except on exit status 3 (re-registration with X failed). Check the cause first; `register` calls the X API, so run it only once the cause is fixed:
+
+  ```sh
+  journalctl -u angelic-angel | grep 're-registration'
+  ```
+
+  - **401 / 403** (e.g. `push subscription registration failed (401 Unauthorized)`): the `auth_token` / `ct0` cookies have expired. Run `init` first to enter new ones. `init` writes a new config without the registration, which `register` then creates again.
+  - **Network or file errors**: fix the cause, then `register` as is.
 
   ```sh
   sudo systemctl stop angelic-angel
+  sudo -u angelic-angel angelic-angel -c /var/lib/angelic-angel/angelic-angel.toml init      # only for 401/403
   sudo -u angelic-angel angelic-angel -c /var/lib/angelic-angel/angelic-angel.toml register
   sudo systemctl start angelic-angel
   ```
