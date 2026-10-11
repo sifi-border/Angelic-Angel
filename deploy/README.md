@@ -25,6 +25,7 @@ This directory contains a systemd unit and a setup script for running `listen` p
 
    ```sh
    WEBHOOK_FORMAT=discord
+   NOTIFICATION_TYPES=tweet
    WEBHOOK_ENDPOINT=https://discord.com/api/webhooks/ID/TOKEN
    ```
 

@@ -149,6 +149,17 @@ mod format_tests {
         assert_eq!(parse_webhook_format(" Discord ").unwrap(), WebhookFormat::Discord);
         assert!(parse_webhook_format("slack").is_err());
     }
+
+    #[test]
+    fn parses_notification_types() {
+        assert_eq!(parse_notification_types(""), None);
+        assert_eq!(parse_notification_types(" , "), None);
+        assert_eq!(parse_notification_types("tweet"), Some(vec!["tweet".to_string()]));
+        assert_eq!(
+            parse_notification_types(" tweet, mention ,"),
+            Some(vec!["tweet".to_string(), "mention".to_string()])
+        );
+    }
 }
 
 /// Shape of the JSON body POSTed to the webhook.
@@ -177,6 +188,24 @@ fn parse_webhook_format(value: &str) -> Result<WebhookFormat> {
             other
         ))),
     }
+}
+
+/// Reads the notification types to forward from NOTIFICATION_TYPES (comma-separated,
+/// e.g. `tweet`). `None` (unset or empty) forwards every notification.
+pub fn get_notification_types() -> Option<Vec<String>> {
+    std::env::var("NOTIFICATION_TYPES")
+        .ok()
+        .and_then(|value| parse_notification_types(&value))
+}
+
+fn parse_notification_types(value: &str) -> Option<Vec<String>> {
+    let types: Vec<String> = value
+        .split(',')
+        .map(str::trim)
+        .filter(|t| !t.is_empty())
+        .map(String::from)
+        .collect();
+    (!types.is_empty()).then_some(types)
 }
 
 /// Reads the webhook endpoint URL from the WEBHOOK_ENDPOINT environment variable.

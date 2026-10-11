@@ -7,7 +7,8 @@ After=network-online.target
 Type=exec
 User=angelic-angel
 Group=angelic-angel
-# WEBHOOK_ENDPOINT (Discord URL, a credential) and WEBHOOK_FORMAT=discord. 0600 root:root.
+# WEBHOOK_ENDPOINT (Discord URL, a credential), WEBHOOK_FORMAT=discord and optionally
+# NOTIFICATION_TYPES=tweet. 0600 root:root.
 EnvironmentFile=/etc/angelic-angel/discord.env
 # More logs: `systemctl edit` with Environment=RUST_LOG=angelic_angel=info (or debug);
 # they include the full payload and push endpoint, so revert afterwards.

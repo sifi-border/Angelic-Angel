@@ -16,6 +16,8 @@ struct Webhook {
     client: Client,
     url: String,
     format: WebhookFormat,
+    /// Notification `data.type` values to forward; `None` forwards everything.
+    types: Option<Vec<String>>,
 }
 
 /// Outcome of a single listen session.
@@ -64,6 +66,7 @@ pub async fn listen(mut registration: Registration, config_path: &Path) -> Resul
         client: Client::builder().timeout(WEBHOOK_TIMEOUT).build()?,
         url: config::get_webhook_endpoint()?,
         format: config::get_webhook_format()?,
+        types: config::get_notification_types(),
     };
     let mut retry_count: u32 = 0;
 
@@ -285,11 +288,30 @@ fn handle_notification_data(
 
     tracing::info!(payload = %payload, "notification decrypted");
 
+    // Still ACKed as delivered by the caller, so AutoPush does not resend it.
+    let notification_type = payload.pointer("/data/type").and_then(|t| t.as_str());
+    if !is_wanted(webhook.types.as_deref(), notification_type) {
+        tracing::warn!(
+            notification_type = notification_type.unwrap_or("<none>"),
+            uri = payload.pointer("/data/uri").and_then(|u| u.as_str()).unwrap_or(""),
+            "skipped notification: type not in NOTIFICATION_TYPES"
+        );
+        return Ok(());
+    }
+
     // ponytail: one task per notification, unbounded and unordered; bounded by
     // WEBHOOK_TIMEOUT. Add a queue/semaphore if notification bursts become large.
     tokio::spawn(send_to_webhook(webhook.clone(), payload));
 
     Ok(())
+}
+
+/// Whether a notification of `notification_type` should go to the webhook.
+fn is_wanted(types: Option<&[String]>, notification_type: Option<&str>) -> bool {
+    match types {
+        None => true,
+        Some(types) => notification_type.is_some_and(|t| types.iter().any(|wanted| wanted == t)),
+    }
 }
 
 /// Sends the decrypted notification payload to the configured webhook endpoint via HTTP POST.
@@ -436,6 +458,18 @@ fn parse_header_param(header_value: Option<&String>, param_name: &str) -> Result
 mod tests {
     use super::*;
     use std::collections::HashMap;
+
+    #[test]
+    fn filters_by_notification_type() {
+        let tweet_only = vec!["tweet".to_string()];
+        let filter = Some(tweet_only.as_slice());
+
+        assert!(is_wanted(filter, Some("tweet")));
+        assert!(!is_wanted(filter, Some("mr_infrequent_poster")));
+        assert!(!is_wanted(filter, None));
+        assert!(is_wanted(None, Some("mr_infrequent_poster")));
+        assert!(is_wanted(None, None));
+    }
 
     #[test]
     fn backoff_doubles_from_5s_and_caps_at_5min() {

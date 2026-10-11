@@ -91,6 +91,16 @@ WEBHOOK_FORMAT=discord WEBHOOK_ENDPOINT=https://discord.com/api/webhooks/ID/TOKE
 
 Each notification is posted as just the tweet link; Discord's link preview shows the tweet. A payload without a link is posted as JSON (push endpoint removed, mentions disabled). The webhook URL is a credential; it is never written to the logs.
 
+#### Filtering by notification type
+
+X also pushes recommendations (e.g. "Posted for the first time in a while"), whose `data.type` starts with `mr_`. To forward only some types, list them in `NOTIFICATION_TYPES` (comma-separated):
+
+```bash
+NOTIFICATION_TYPES=tweet
+```
+
+`tweet` is the notification for accounts whose bell is on. Other notifications are not sent to the webhook and are logged as a warning (`skipped notification: type not in NOTIFICATION_TYPES`, with the type and tweet path), so you can spot a type you actually want. Unset or empty forwards everything.
+
 ### Other commands
 
 ```sh

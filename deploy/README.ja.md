@@ -25,6 +25,7 @@
 
    ```sh
    WEBHOOK_FORMAT=discord
+   NOTIFICATION_TYPES=tweet
    WEBHOOK_ENDPOINT=https://discord.com/api/webhooks/ID/TOKEN
    ```
 

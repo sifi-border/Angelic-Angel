@@ -91,6 +91,16 @@ WEBHOOK_FORMAT=discord WEBHOOK_ENDPOINT=https://discord.com/api/webhooks/ID/TOKE
 
 通知ごとに、ツイートのリンクだけを投稿します (内容は Discord のリンクプレビューで表示されます)。リンクのないペイロードは JSON のまま投稿されます (プッシュエンドポイントは除き、メンションは無効)。Webhook の URL は認証情報にあたるため、ログには出力されません。
 
+#### 通知の種類で絞り込む
+
+X はレコメンド (例:「Posted for the first time in a while」) もプッシュしてきます。これらの `data.type` は `mr_` で始まります。特定の種類だけを転送するには、`NOTIFICATION_TYPES` にカンマ区切りで指定します。
+
+```bash
+NOTIFICATION_TYPES=tweet
+```
+
+`tweet` は、ベルをオンにしたアカウントのツイートの通知です。それ以外の通知は Webhook に送らず、警告としてログに記録します (`skipped notification: type not in NOTIFICATION_TYPES`、種類とツイートのパス付き)。欲しい種類が落とされていないかは、このログで確認できます。未設定または空なら、すべて転送します。
+
 ### その他のコマンド
 
 ```sh
